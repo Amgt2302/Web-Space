@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/asset/icon/Hidden-icon.png">
+    <title>Hidden</title>
+
+    <!-- Ctrl + F \[°-°]/ to find tips ! -->
+
+    <style>
+        body {
+            background-color: rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .fireworks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+        .spark {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: explode 2s forwards;
+        }
+        @keyframes explode {
+            0% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0) translateY(-1000px);
+                opacity: 0;
+            }
+        }
+
+        /* Game Over Menu */
+        #gameOverMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+        }
+        #gameOverMenu button {
+            background: #0066ff;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #gameOverMenu button:hover {
+            background: #0030cc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    <div id="fireworks" class="fireworks"></div>
+    <div id="gameOverMenu">
+        <h1>Game Over</h1>
+        <p>Score: <span id="finalScore"></span></p>
+        <p id="message"></p>
+        <button id="restartButton">Restart Game</button>
+    </div>
+
+    <script>
+        function isMobileDevice() {
+            return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf("IEMobile") !== -1);
+        }
+        document.body.style.backgroundColor = isMobileDevice() ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.8)"; // adaptive brightness \[°-°]/
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const gameOverMenu = document.getElementById("gameOverMenu");
+        const finalScoreElement = document.getElementById("finalScore");
+        const messageElement = document.getElementById('message')
+
+        function resizeCanvas() { // canvas size \[°-°]/
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function showGameOverMessage() {
+            finalScoreElement.textContent = score;
+            const randomIndex = Math.floor(Math.random() * messages.length);
+            messageElement.textContent = messages[randomIndex];
+            gameOverMenu.style.display = 'block';
+        }
+
+        const messages = ["fireworks at 5 000, Go !?", "Great Score", "You can also play on your phone !", "aaaaargh...", "Beware of poop !"];
+
+        const enemies = [];
+        const bombs = [];
+        let boss = null;
+        let score = 0;
+        let gameRunning = true;
+        let lastBossScore = 0;
+        let bossDefeated = false;
+
+        const player = {
+            x: canvas.width / 2,
+            y: isMobileDevice() ? canvas.height - 100 : canvas.height - 30,
+            width: 40,
+            height: 20,
+            speed: 5, // player speed \[°-°]/
+            angle: 0 //rotate player \[°-°]/
+        };
+
+        const bullets = [];
+        const bulletSpeed = 5; //change bullet speed, size \[°-°]/
+        const bulletWidth = 8;
+        const bulletHeight = 8;
+        const bulletOffsetX = 2;
+        const bulletOffsetY = -35;
+        const bulletDamage = 1 ; //bullet damage \[°-°]/
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+            ctx.rotate(player.angle);
+            ctx.font = "30px Arial";
+            ctx.fillText("🛸", -player.width / 2, -player.height / 2); //change player \[°-°]/
+            ctx.restore();
+        }
+
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                ctx.fillText(enemy.character, enemy.x, enemy.y);
+            });
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = "aqua"; //bullet color \[°-°]/
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+
+        function drawBombs() {
+            bombs.forEach(bomb => {
+                ctx.fillText("💣", bomb.x, bomb.y); //change boss bullet \[°-°]/
+            });
+        }
+
+        function drawBoss() {
+            if (boss) {
+                ctx.fillText(boss.character, boss.x, boss.y);
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = "white";
+            ctx.font = "24px Arial";
+            ctx.fillText("Score: " + score, 10, 30);
+        }
+
+        function moveEnemies() {
+            enemies.forEach(enemy => {
+                enemy.y += enemy.speed;
+            });
+        }
+
+        function moveBoss() {
+            if (boss) {
+                boss.x += boss.speedX;
+                boss.y += boss.speedY;
+
+                // Boss bounce in screen
+                if (boss.x < 0 || boss.x > canvas.width - boss.width) {
+                    boss.speedX *= -1;
+                }
+                if (boss.y < 0 || boss.y > canvas.height / 2) {
+                    boss.speedY *= -1;
+                }
+            }
+        }
+
+        function generateEnemies() {
+            const characters = ["🛸", "🎈", "👽", "⭐", "🌑", "🌎", "🪐", "🌕", "🧻", "💩"]; //create enemy \[°-°]/
+            const points = [5, 5, 5, 5, 10, 10, 10, 10, 999, -999];
+            const health = [1, 1, 1, 1, 10, 10, 10, 10, 25, 25];
+
+            const characterIndex = Math.floor(Math.random() * characters.length); //-1 a rain of undifined XD \[°-°]/
+            const x = Math.random() * canvas.width;
+            const y = 0;
+            const speed = 2.6; //enemy speed \[°-°]/
+
+            enemies.push({
+                character: characters[characterIndex],
+                x: x,
+                y: y,
+                width: 30,
+                height: 40,
+                points: points[characterIndex],
+                health: health[characterIndex],
+                speed: speed
+            });
+        }
+
+        function generateBoss() {
+            const bossCharacters = ["👻", "👹", "💀", "👿", "🤖"];
+            const characterIndex = Math.floor(Math.random() * bossCharacters.length);
+
+            boss = {
+                x: 50,
+                y: 50,
+                width: 30,
+                height: 30,
+                health: 5,
+                speedX: 3,
+                speedY: 3,
+                character: bossCharacters[characterIndex]
+            };
+        }
+
+        function showFireworks() {
+            const fireworksContainer = document.getElementById('fireworks');
+            fireworksContainer.innerHTML = '';
+
+            const colors = [
+                "#ff0044", "#ff9f00", "#ffec00", "#5eff00", "#00b2ff", "#5e2eff",
+                "#ff007f", "#ff3f3f", "#ff5e00", "#ffb200", "#ffec7f", "#b2ff00",
+                "#00ffb2", "#00ff7f", "#00ffec", "#007fff", "#003fff", "#7f00ff",
+                "#b200ff", "#ec00ff", "#ff00b2", "#ff007f", "#7f003f", "#3f00ff",
+                "#7f7f7f", "#3f3f3f", "#b27f00", "#ec5e00", "#5e00b2", "#3f00b2"
+            ];
+
+            for (let i = 0; i < 100; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'spark';
+                spark.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                spark.style.left = Math.random() * window.innerWidth + 'px';
+                spark.style.top = Math.random() * window.innerHeight + 'px';
+                spark.style.width = Math.random() * 10 + 5 + 'px';
+                spark.style.height = spark.style.width;
+                spark.style.animationDuration = 2 + 's';
+                fireworksContainer.appendChild(spark);
+
+                // Remove spark element after animation ends
+                spark.addEventListener('animationend', () => {
+                    fireworksContainer.removeChild(spark);
+                });
+            }
+        }
+
+        const keys = {};
+        document.addEventListener("keydown", function (e) {
+            keys[e.key] = true;
+        });
+        document.addEventListener("keyup", function (e) {
+            if (e.key === " ") {
+                bullets.push({
+                    x: player.x + player.width / 2 - bulletWidth / 2 + bulletOffsetX,
+                    y: player.y + bulletOffsetY,
+                    width: bulletWidth,
+                    height: bulletHeight
+                });
+            }
+            delete keys[e.key];
+        });
+        document.addEventListener("keydown", function (e) {
+            keys[e.key] = true;
+            if (e.key === "Enter" && !gameRunning) {
+                location.reload();
+            }
+        });
+
+        function movePlayer() {
+            if (keys["ArrowLeft"] && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (keys["ArrowRight"] && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+        }
+
+        const touchSensitivity = 0.75; //touchscreen \[°-°]/
+
+        // touch Control smartphone
+        canvas.addEventListener("touchstart", function (event) {
+            touchStartX = event.touches[0].clientX;
+        });
+
+        canvas.addEventListener("touchmove", function (event) {
+            event.preventDefault();
+            const touchMoveX = event.touches[0].clientX;
+            const touchDiffX = touchMoveX - touchStartX;
+            const moveAmount = touchDiffX * touchSensitivity;
+
+            if (moveAmount > 0 && player.x < canvas.width - player.width) {
+                player.x += moveAmount;
+            } else if (moveAmount < 0 && player.x > 0) {
+                player.x += moveAmount;
+            }
+
+            touchStartX = touchMoveX;
+        });
+
+        canvas.addEventListener("touchend", function (event) {
+            bullets.push({
+                x: player.x + player.width / 2 - bulletWidth / 2 + bulletOffsetX,
+                y: player.y + bulletOffsetY,
+                width: bulletWidth,
+                height: bulletHeight
+            });
+        });
+
+        function moveBullets() {
+            bullets.forEach(bullet => {
+                bullet.y -= bulletSpeed;
+            });
+            bullets.forEach((bullet, bulletIndex) => {
+                if (bullet.y + bullet.height < 0) {
+                    bullets.splice(bulletIndex, 1);
+                } else {
+                    // Check collision with enemies
+                    enemies.forEach((enemy, enemyIndex) => {
+                        if (
+                            bullet.x < enemy.x + enemy.width &&
+                            bullet.x + bullet.width > enemy.x &&
+                            bullet.y < enemy.y + enemy.height &&
+                            bullet.y + bullet.height > enemy.y
+                        ) {
+                            enemy.health -= bulletDamage;
+                            if (enemy.health <= 0) {
+                                bullets.splice(bulletIndex, 1);
+                                enemies.splice(enemyIndex, 1);
+                                score += enemy.points;
+                            }
+                        }
+                    });
+
+                    // Check collision with boss
+                    if (boss &&
+                        bullet.x < boss.x + boss.width &&
+                        bullet.x + bullet.width > boss.x &&
+                        bullet.y < boss.y + boss.height &&
+                        bullet.y + bullet.height > boss.y) {
+                        boss.health -= bulletDamage;
+                        bullets.splice(bulletIndex, 1);
+                        if (boss.health <= 0) {
+                            boss = null;
+                            bossDefeated = true;
+                            lastBossScore = score;
+                        }
+                    }
+                }
+            });
+        }
+
+        function moveBombs() {
+            bombs.forEach(bomb => {
+                bomb.y += bomb.speed;
+            });
+            bombs.forEach((bomb, bombIndex) => {
+                if (bomb.y > canvas.height) {
+                    bombs.splice(bombIndex, 1);
+                } else {
+                    // Check collision with player
+                    if (
+                        bomb.x < player.x + player.width &&
+                        bomb.x + bomb.width > player.x &&
+                        bomb.y < player.y + player.height &&
+                        bomb.y + bomb.height > player.y
+                    ) {
+                        showGameOverMessage();
+                        gameRunning = false;
+                    }
+                }
+            });
+        }
+
+        function dropBomb() {
+            if (boss) {
+                bombs.push({
+                    x: boss.x + boss.width / 2,
+                    y: boss.y + boss.height,
+                    width: 30,
+                    height: 30,
+                    speed: 4.5 // bomb speed \[°-°]/
+                });
+            }
+        }
+
+        function updateEnemies() {
+            if (Math.random() < 0.025 && !boss) { // more enemies ? \[°-°]/
+                generateEnemies();
+            }
+
+            // Check for collision with player
+            enemies.forEach((enemy, enemyIndex) => {
+                if (
+                    player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y
+                ) {
+                    showGameOverMessage();
+                    gameRunning = false;
+                }
+            });
+        }
+
+        function drawEnemyHitboxes() {
+            ctx.strokeStyle = "red";
+            enemies.forEach(enemy => {
+                ctx.strokeRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+        }
+
+        function drawPlayerHitbox() {
+            ctx.strokeStyle = "blue";
+            ctx.strokeRect(player.x, player.y, player.width, player.height);
+        }
+
+        function drawBossHitbox() {
+            if (boss) {
+                ctx.strokeStyle = "green";
+                ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
+            }
+        }
+
+        function drawBombHitboxes() {
+            ctx.strokeStyle = "yellow";
+            bombs.forEach(bomb => {
+                ctx.strokeRect(bomb.x, bomb.y, bomb.width, bomb.height);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawEnemies();
+            drawBullets();
+            drawBombs();
+            drawBoss();
+            drawScore();
+
+            //drawPlayerHitbox(); // player Hitbox \[°-°]/
+            //drawEnemyHitboxes(); // enemy Hitbox \[°-°]/
+            //drawBossHitbox(); // boss Hitbox \[°-°]/
+            //drawBombHitboxes(); // bomb Hitbox \[°-°]/
+        }
+
+        function updateGameState() {
+            if (!gameRunning) return;
+
+            movePlayer();
+            moveEnemies();
+            moveBullets();
+            moveBombs();
+            moveBoss();
+            updateEnemies();
+
+            if (score >= lastBossScore + 1000 && !boss) {
+                generateBoss();
+            }
+
+            const bombDropFrequency = isMobileDevice() ? 0.02 : 0.05;// Drop bombs frequency \[°-°]/
+            if (boss && Math.random() < bombDropFrequency) {
+                dropBomb();
+            }
+
+            // Check for victory \[°-°]/
+            if (score >= 5000) {
+                gameRunning = false;
+                showFireworks();
+
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            }
+        }
+
+        function gameLoop() {
+            updateGameState();
+            draw();
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        document.getElementById("restartButton").addEventListener("click", function () {
+            location.reload(); // Restart the game
+        });
+
+        gameLoop();
+    </script>
+</body>
+<!-- Made By ©Amgt2302 - 2025 -->
+</html>
