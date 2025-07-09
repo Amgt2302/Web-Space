@@ -11,18 +11,15 @@
 
     <style>
         body {
-            background-color: rgba(0, 0, 0, 0.8);
+            background-color: rgba(0, 0, 0, 0.9);
+            background-image: url(/asset/img/stars-sky.svg);
             overflow: hidden;
             font-family: sans-serif;
             margin: 0;
             padding: 0;
             position: relative;
         }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
+        canvas {display: block; width: 100vw; height: 100vh;}
 
         .fireworks {
             position: absolute;
@@ -75,9 +72,7 @@
             border-radius: 5px;
             cursor: pointer;
         }
-        #gameOverMenu button:hover {
-            background: #0030cc;
-        }
+        #gameOverMenu button:hover {background: #0030cc;}
     </style>
 </head>
 
@@ -96,7 +91,7 @@
         function isMobileDevice() {
             return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf("IEMobile") !== -1);
         }
-        document.body.style.backgroundColor = isMobileDevice() ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.8)"; // adaptive brightness \[°-°]/
+        //document.body.style.backgroundColor = isMobileDevice() ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.8)"; // adaptive brightness \[°-°]/
 
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
@@ -119,26 +114,26 @@
         }
 
         const messages = ["fireworks at 5 000, Go !?", "Great Score", "You can also play on your phone !", "aaaaargh...", "Beware of poop !"];
+        let score = 0;
+        let gameRunning = true;
 
         const enemies = [];
         const bombs = [];
         let boss = null;
-        let score = 0;
-        let gameRunning = true;
         let lastBossScore = 0;
         let bossDefeated = false;
 
         const player = {
             x: canvas.width / 2,
-            y: isMobileDevice() ? canvas.height - 100 : canvas.height - 30,
+            y: isMobileDevice() ? canvas.height - 100 : canvas.height - 20,
             width: 40,
             height: 20,
-            speed: 5, // player speed \[°-°]/
+            speed: 6, // player speed \[°-°]/
             angle: 0 //rotate player \[°-°]/
         };
 
         const bullets = [];
-        const bulletSpeed = 5; //change bullet speed, size \[°-°]/
+        const bulletSpeed = 6; //change bullet speed, size \[°-°]/
         const bulletWidth = 8;
         const bulletHeight = 8;
         const bulletOffsetX = 2;
@@ -157,6 +152,7 @@
         function drawEnemies() {
             enemies.forEach(enemy => {
                 ctx.fillText(enemy.character, enemy.x, enemy.y);
+                debugCode(enemy, null);
             });
         }
 
@@ -176,6 +172,7 @@
         function drawBoss() {
             if (boss) {
                 ctx.fillText(boss.character, boss.x, boss.y);
+                debugCode(null, boss);
             }
         }
 
@@ -184,17 +181,24 @@
             ctx.font = "24px Arial";
             ctx.fillText("Score: " + score, 10, 30);
         }
-
-        function moveEnemies() {
-            enemies.forEach(enemy => {
-                enemy.y += enemy.speed;
-            });
+        function drawBossHealth() {
+            if (!boss) return;
+            ctx.fillStyle = "cyan";
+            ctx.font = "20px Arial";
+            ctx.fillText("Boss HP: " + boss.health, 10, 60);
         }
 
-        function moveBoss() {
+
+        function moveEnemies(frameSpeed) {
+            enemies.forEach(enemy => {
+                enemy.y += enemy.speed * frameSpeed;
+            });
+        }
+        
+        function moveBoss(frameSpeed) {
             if (boss) {
-                boss.x += boss.speedX;
-                boss.y += boss.speedY;
+                boss.x += boss.speedX * frameSpeed;
+                boss.y += boss.speedY * frameSpeed;
 
                 // Boss bounce in screen
                 if (boss.x < 0 || boss.x > canvas.width - boss.width) {
@@ -209,19 +213,19 @@
         function generateEnemies() {
             const characters = ["🛸", "🛰️", "👽", "⭐", "🔧", "🌎", "🛒", "🌕", "🧻", "💩"]; //create enemy \[°-°]/
             const points = [5, 5, 5, 5, 10, 10, 10, 10, 999, -999];
-            const health = [1, 1, 1, 1, 10, 10, 10, 10, 25, 25];
+            const health = [1, 1, 1, 1, 2, 2, 2, 2, 5, 5];
 
             const characterIndex = Math.floor(Math.random() * characters.length); //-1 a rain of undifined XD \[°-°]/
             const x = Math.random() * canvas.width;
             const y = 0;
-            const speed = 2.6; //enemy speed \[°-°]/
+            const speed = 3; //enemy speed \[°-°]/
 
             enemies.push({
                 character: characters[characterIndex],
                 x: x,
                 y: y,
                 width: 30,
-                height: 40,
+                height: 30,
                 points: points[characterIndex],
                 health: health[characterIndex],
                 speed: speed
@@ -267,7 +271,6 @@
                 spark.style.animationDuration = 2 + 's';
                 fireworksContainer.appendChild(spark);
 
-                // Remove spark element after animation ends
                 spark.addEventListener('animationend', () => {
                     fireworksContainer.removeChild(spark);
                 });
@@ -296,18 +299,18 @@
             }
         });
 
-        function movePlayer() {
+        function movePlayer(frameSpeed) {
             if (keys["ArrowLeft"] && player.x > 0) {
-                player.x -= player.speed;
+                player.x -= player.speed * frameSpeed;
             }
             if (keys["ArrowRight"] && player.x < canvas.width - player.width) {
-                player.x += player.speed;
+                player.x += player.speed * frameSpeed;
             }
         }
 
+
         const touchSensitivity = 0.75; //touchscreen \[°-°]/
 
-        // touch Control smartphone
         canvas.addEventListener("touchstart", function (event) {
             touchStartX = event.touches[0].clientX;
         });
@@ -336,16 +339,19 @@
             });
         });
 
-        function moveBullets() {
-            bullets.forEach(bullet => {
-                bullet.y -= bulletSpeed;
-            });
-            bullets.forEach((bullet, bulletIndex) => {
-                if (bullet.y + bullet.height < 0) {
-                    bullets.splice(bulletIndex, 1);
-                } else {
-                    // Check collision with enemies
-                    enemies.forEach((enemy, enemyIndex) => {
+        function moveBullets(frameSpeed) {
+                bullets.forEach((bullet, bulletIndex) => {
+                    bullet.y -= bulletSpeed * frameSpeed;
+
+                    // Remove bullet out of screen
+                    if (bullet.y + bullet.height < 0) {
+                        bullets.splice(bulletIndex, 1);
+                        return;
+                    }
+
+                    // Collision (Bullet with enemies)
+                    for (let enemyIndex = 0; enemyIndex < enemies.length; enemyIndex++) {
+                        const enemy = enemies[enemyIndex];
                         if (
                             bullet.x < enemy.x + enemy.width &&
                             bullet.x + bullet.width > enemy.x &&
@@ -353,71 +359,78 @@
                             bullet.y + bullet.height > enemy.y
                         ) {
                             enemy.health -= bulletDamage;
+
+                            // Remove enemy if died
                             if (enemy.health <= 0) {
-                                bullets.splice(bulletIndex, 1);
                                 enemies.splice(enemyIndex, 1);
                                 score += enemy.points;
                             }
+                            bullets.splice(bulletIndex, 1);
+                            return;
                         }
-                    });
+                    }
 
-                    // Check collision with boss
+                    // Collision (Bullet with boss)
                     if (boss &&
                         bullet.x < boss.x + boss.width &&
                         bullet.x + bullet.width > boss.x &&
                         bullet.y < boss.y + boss.height &&
                         bullet.y + bullet.height > boss.y) {
                         boss.health -= bulletDamage;
+                        console.log("👹 Boss PV = " + boss.health);
                         bullets.splice(bulletIndex, 1);
                         if (boss.health <= 0) {
                             boss = null;
                             bossDefeated = true;
                             lastBossScore = score;
                         }
+                        return;
                     }
-                }
-            });
-        }
-
-        function moveBombs() {
-            bombs.forEach(bomb => {
-                bomb.y += bomb.speed;
-            });
-            bombs.forEach((bomb, bombIndex) => {
-                if (bomb.y > canvas.height) {
-                    bombs.splice(bombIndex, 1);
-                } else {
-                    // Check collision with player
-                    if (
-                        bomb.x < player.x + player.width &&
-                        bomb.x + bomb.width > player.x &&
-                        bomb.y < player.y + player.height &&
-                        bomb.y + bomb.height > player.y
-                    ) {
-                        showGameOverMessage();
-                        gameRunning = false;
-                    }
-                }
-            });
-        }
-
-        function dropBomb() {
-            if (boss) {
-                bombs.push({
-                    x: boss.x + boss.width / 2,
-                    y: boss.y + boss.height,
-                    width: 30,
-                    height: 30,
-                    speed: 4.5 // bomb speed \[°-°]/
                 });
             }
-        }
 
-        function updateEnemies() {
-            if (Math.random() < 0.025 && !boss) { // more enemies ? \[°-°]/
-                generateEnemies();
+            function moveBombs(frameSpeed) {
+                bombs.forEach(bomb => {
+                    bomb.y += bomb.speed * frameSpeed;
+                });
+
+                bombs.forEach((bomb, bombIndex) => {
+                    if (bomb.y > canvas.height) {
+                        bombs.splice(bombIndex, 1);
+                    } else {
+                        // Check collision (Bomb with player)
+                        if (
+                            bomb.x < player.x + player.width &&
+                            bomb.x + bomb.width > player.x &&
+                            bomb.y < player.y + player.height &&
+                            bomb.y + bomb.height > player.y
+                        ) {
+                            showGameOverMessage();
+                            gameRunning = false;
+                        }
+                    }
+                });
             }
 
+            function dropBomb() {
+                if (boss) {
+                    bombs.push({
+                        x: boss.x + boss.width / 2,
+                        y: boss.y + boss.height,
+                        width: 30,
+                        height: 30,
+                        speed: 4.5 // bomb speed \[°-°]/
+                    });
+                }
+            }
+
+        function updateEnemies() {
+            const spawnRate = isMobileDevice() ? 0.015 : 0.025; // more enemies ? \[°-°]/
+        
+            if (Math.random() < spawnRate && !boss) {
+                generateEnemies();
+            }
+        
             // Check for collision with player
             enemies.forEach((enemy, enemyIndex) => {
                 if (
@@ -432,30 +445,64 @@
             });
         }
 
+
+        //Debug
         function drawEnemyHitboxes() {
+            if (!DEBUG_MODE) return;
             ctx.strokeStyle = "red";
             enemies.forEach(enemy => {
                 ctx.strokeRect(enemy.x, enemy.y, enemy.width, enemy.height);
             });
         }
-
         function drawPlayerHitbox() {
+            if (!DEBUG_MODE) return;
             ctx.strokeStyle = "blue";
             ctx.strokeRect(player.x, player.y, player.width, player.height);
         }
-
         function drawBossHitbox() {
+            if (!DEBUG_MODE) return;
             if (boss) {
                 ctx.strokeStyle = "green";
                 ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
             }
         }
-
         function drawBombHitboxes() {
+            if (!DEBUG_MODE) return;
             ctx.strokeStyle = "yellow";
             bombs.forEach(bomb => {
                 ctx.strokeRect(bomb.x, bomb.y, bomb.width, bomb.height);
             });
+        }
+
+        function debugCode(enemy, boss) {
+            if (!DEBUG_MODE) return;
+            //if (enemy) {console.log(enemy.character + " ➖ PV = " + enemy.health);}
+            if (boss) {console.log(boss.character + " ➖ PV = " + boss.health);}
+        }
+
+
+        function debugFPS(targetFPS, durationSeconds) {
+            console.log(`Debug mode started at ${targetFPS} FPS for ⏱️ ${durationSeconds}s`);
+
+            let testFrame = 0;
+            const maxFrames = targetFPS * durationSeconds;
+            const frameDuration = 1000 / targetFPS;
+
+            function debugLoop() {
+                const frameSpeed = 1;
+
+                updateGameState(frameSpeed);
+                draw();
+                testFrame++;
+
+                if (testFrame < maxFrames) {
+                    setTimeout(debugLoop, frameDuration);
+                } else {
+                    console.log("Debug Time Ended");
+                }
+            }
+
+            debugLoop();
         }
 
         function draw() {
@@ -466,57 +513,74 @@
             drawBombs();
             drawBoss();
             drawScore();
+            drawBossHealth();
 
-            //drawPlayerHitbox(); // player Hitbox \[°-°]/
-            //drawEnemyHitboxes(); // enemy Hitbox \[°-°]/
-            //drawBossHitbox(); // boss Hitbox \[°-°]/
-            //drawBombHitboxes(); // bomb Hitbox \[°-°]/
+            drawPlayerHitbox(); // player Hitbox \[°-°]/
+            drawEnemyHitboxes(); // enemy Hitbox \[°-°]/
+            drawBossHitbox(); // boss Hitbox \[°-°]/
+            drawBombHitboxes(); // bomb Hitbox \[°-°]/
         }
 
-        function updateGameState() {
+        function updateGameState(frameSpeed) {
             if (!gameRunning) return;
-
-            movePlayer();
-            moveEnemies();
-            moveBullets();
-            moveBombs();
-            moveBoss();
+        
+            movePlayer(frameSpeed);
+            moveEnemies(frameSpeed);
+            moveBullets(frameSpeed);
+            moveBombs(frameSpeed);
+            moveBoss(frameSpeed);
             updateEnemies();
-
+        
             if (score >= lastBossScore + 1000 && !boss) {
                 generateBoss();
             }
-
-            const bombDropFrequency = isMobileDevice() ? 0.02 : 0.05;// Drop bombs frequency \[°-°]/
+        
+            const bombDropFrequency = isMobileDevice() ? 0.02 : 0.05;
             if (boss && Math.random() < bombDropFrequency) {
                 dropBomb();
             }
-
-            // Check for victory \[°-°]/
+        
             if (score >= 5000) {
                 gameRunning = false;
                 showFireworks();
-
-                setTimeout(() => {
-                    location.reload();
-                }, 3000);
+                setTimeout(() => location.reload(), 3000);
             }
         }
 
-        function gameLoop() {
-            updateGameState();
+        let lastTime = 0;
+        let deltaTime;
+        let frameSpeed = deltaTime * 60;
+
+        function gameLoop(currentTime) {
+            if (!lastTime) lastTime = currentTime;
+            let deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+        
+            let frameSpeed = deltaTime * 60;
+        
+            updateGameState(frameSpeed);
             draw();
+        
             if (gameRunning) {
                 requestAnimationFrame(gameLoop);
             }
         }
 
         document.getElementById("restartButton").addEventListener("click", function () {
-            location.reload(); // Restart the game
+            location.reload();
         });
 
-        gameLoop();
+
+        //Game 
+        const DEBUG_MODE = false; // Activate debug \[°-°]/
+
+        if (DEBUG_MODE) {
+            debugFPS(60, 30);
+            debugCode();
+        }
+        else {requestAnimationFrame(gameLoop);}
+
     </script>
 </body>
-<!-- Made By ©Amgt2302 - 2025 -->
+<!-- Made By Amgt :) -->
 </html>
